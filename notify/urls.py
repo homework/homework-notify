@@ -32,6 +32,10 @@ urls += map(
       (r'facebook/?', views.Facebook),
       (r'twitter/?', views.Twitter),
       (r'sms/?', views.Sms),
+      (r'push/?', views.Push),
+      (r'growl/?', views.Growl),
+      
+      (r'status/?', views.Status),
       ])
         
 application = webapp.WSGIApplication(urls, debug=False)

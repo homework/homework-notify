@@ -66,6 +66,10 @@ class Service(db.Model):
     def ins_default():
         Service.get_or_insert("twitter", endpoint=secrets.TWITTER_ENDPOINT)
         Service.get_or_insert("email", endpoint=secrets.EMAIL_ENDPOINT)
+        Service.get_or_insert("facebook", endpoint=secrets.FACEBOOK_ENDPOINT)
+        Service.get_or_insert("sms", endpoint=secrets.SMS_ENDPOINT)
+        Service.get_or_insert("push", endpoint=secrets.PUSH_ENDPOINT)
+        Service.get_or_insert("growl", endpoint=secrets.GROWL_ENDPOINT)
 
 class ServiceUse(db.Model):
     suid = db.StringProperty(required=True)
@@ -107,8 +111,19 @@ class Log(db.Model):
 
     def todict(self):
         ts = datetime_as_float(self.ts) if self.ts else None
-        return { 'uid': svcu.router.routerid,
+        return { 'uid': self.svcu.router.routerid,
                  'msg': self.msg,
-                 'service': svcu.service.name,
-                 'ts': ts,
+                 'service': self.svcu.service.key().name(),
+                 'ts': unicode(self.ts),
                  }
+class NotifyResult(db.Model):
+    statusCode = db.IntegerProperty(required=True)
+    statusMessage = db.TextProperty(required=True)
+    notification = db.StringProperty(required=True)
+    router = db.ReferenceProperty(Router, collection_name="statuses", required=True)
+    
+    def todict(self):
+        return {
+            'code' : self.statusCode,
+            'message' : self.statusMessage,
+            }

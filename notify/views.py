@@ -1,4 +1,4 @@
-## Copyright (C) 2011 Richard Mortier <mort@cantab.net>
+    ## Copyright (C) 2011 Richard Mortier <mort@cantab.net>
 ##
 ## This program is free software: you can redistribute it and/or
 ## modify it under the terms of the GNU Affero General Public License
@@ -14,7 +14,7 @@
 ## License along with this program.  If not, see
 ## <http://www.gnu.org/licenses/>.
 
-import logging, urllib, datetime, hashlib
+import logging, urllib, urllib2, datetime, hashlib, base64
 log = logging.info
 
 from google.appengine.api import urlfetch
@@ -44,8 +44,8 @@ class Log(webapp.RequestHandler):
             self.response.out.write("")
             return            
 
-        les = sorted([ le.todict() for s in u.services for le in s.log_entries ],
-                     key=lambda le: le.ts)
+        les = [ le.todict() for s in u.services for le in s.log_entries ]
+        log("%s", les)
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(les, indent=2))
 
@@ -57,6 +57,20 @@ def json_services_used(r, s):
     return json.dumps(
         [ su.todict() for su in r.services.filter("service =", s) ],
         indent=2)
+
+class Status(webapp.RequestHandler):
+    def post(self, routerid):
+        u = models.Router.all().filter("routerid =", routerid).get()
+        if not u: BARF
+        status = self.request.get("notification")
+        log("%s", status)
+        if not status: BARF
+        notificationResult = models.NotifyResult.all().filter("notification ==", status).get()
+        log("%s", notificationResult)
+        resultDict = notificationResult.todict()
+        log("%s", resultDict)
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(resultDict, indent=2))
 
 class Email(webapp.RequestHandler):
     def post(self, routerid):
@@ -93,6 +107,27 @@ class Facebook(webapp.RequestHandler):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
         if not r: BARF
+    
+        s = models.Service.get_by_key_name("facebook")
+        sus = r.services.filter("service =", s).fetch(100)
+        if not sus: BARF
+        
+        body = self.request.get("body")
+        if not body: BARF
+        
+        to = self.request.get("to")
+        registered_emails = [ su.endpoint for su in sus ]
+        if (not to or to not in registered_emails): BARF
+        
+        log("FACEBOOK: user:%s to:%s body:\n%s\n--\n" % (
+                                                      r.name, to, body))
+        
+        message = mail.EmailMessage(sender=s.endpoint,
+                                    subject="Homework Router Notification!")
+        message.to = to
+        message.body = body
+        message.send()
+
         
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
@@ -132,9 +167,16 @@ class Twitter(webapp.RequestHandler):
             method=urlfetch.POST,
             )
 
-        log("result: %s -- %s -- %s -- %s" % (
-            resp, resp.status_code, resp.headers, resp.content))
-        
+        log("result: %s -- %s -- %s -- %s" % (resp, resp.status_code, resp.headers, resp.content))
+        serviceLog = models.Log(msg="Sent message: " + body + " to " + to + " using Twitter", svcu=sus[0])
+        serviceLog.put()
+        n = models.Router.all().count()
+        d = datetime.datetime.now().isoformat()
+        twitterid = hashlib.sha1("%s:%s" % (n, d)).hexdigest()
+        log("notification id: %s", twitterid) 
+        twitterResponse = models.NotifyResult(statusCode=resp.status_code, statusMessage=resp.content,notification=twitterid, router=r)
+        twitterResponse.put()
+        self.response.out.write(twitterid);
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "twitter"))
@@ -144,8 +186,88 @@ class Sms(webapp.RequestHandler):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
         if not r: BARF
+    
+        s = models.Service.get_by_key_name("sms")
+        sus = r.services.filter("service =", s).fetch(100)
+        if not sus: BARF
         
+        body = self.request.get("body")
+        if not body: BARF
+        
+        to = self.request.get("to")
+        registered_phones = [ su.endpoint for su in sus ]
+        if (not to or to not in registered_phones): BARF
+        
+        log("SMS: user:%s to:%s body:\n%s\n--\n" % (
+                                                    r.name, to, body))
+        smsToken = secrets.SMS_TOKEN
+        dict = { 'numberToDial' : to, 'message' : body}
+        data = urllib.urlencode(dict)
+        theurl = "https://api.tropo.com/1.0/sessions?action=create&token=" + smsToken + "&" + data
+        resp = urlfetch.fetch(theurl);
+        log("result: %s -- %s -- %s -- %s" % (
+                                              resp, resp.status_code, resp.headers, resp.content))
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "sms"))
 
+class Push(webapp.RequestHandler):
+    def post(self, routerid):
+        if routerid == models.DEFAULT_ROUTER_ID: return
+        r = models.Router.all().filter("routerid =", routerid).get()
+        if not r: BARF
+        
+        s = models.Service.get_by_key_name("push")
+        sus = r.services.filter("service =", s).fetch(100)
+        if not sus: BARF
+        
+        body = self.request.get("body")
+        if not body: BARF
+        
+        to = self.request.get("to")
+        registered_phones = [ su.endpoint for su in sus ]
+        if (not to or to not in registered_phones): BARF
+        
+        log("PUSH: user:%s to:%s body:\n%s\n--\n" % (
+                                                    r.name, to, body))  
+        notificationJson = "{\"android\": {\"alert\": \"" + body + "\"}, \"apids\": [\"" + to + "\"]}"
+        log("JSON: " +notificationJson)
+        theurl = "https://go.urbanairship.com/api/push/"
+        passwordManager = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passwordManager.add_password(None, theurl, secrets.PUSH_KEY, secrets.PUSH_SECRET);
+        authHandler = urllib2.HTTPBasicAuthHandler(passwordManager);
+        opener = urllib2.build_opener(authHandler);
+        urllib2.install_opener(opener)
+        
+        req = urllib2.Request(theurl, notificationJson, {'Content-Type': 'application/json'})
+        f = urllib2.urlopen(req)
+        resp = f.read()
+        f.close()
+        log("result: %s" % (resp))
+    def get(self, routerid):
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json_services_used(routerid, "push"))
+
+class Growl(webapp.RequestHandler):
+    def post(self, routerid):
+        if routerid == models.DEFAULT_ROUTER_ID: return
+        r = models.Router.all().filter("routerid =", routerid).get()
+        if not r: BARF
+        
+        s = models.Service.get_by_key_name("growl")
+        sus = r.services.filter("service =", s).fetch(100)
+        if not sus: BARF
+        
+        body = self.request.get("body")
+        if not body: BARF
+        
+        to = self.request.get("to")
+        registered_devices = [ su.endpoint for su in sus ]
+        if (not to or to not in registered_devices): BARF
+        
+        log("GROWL: user:%s to:%s body:\n%s\n--\n" % (
+                                                     r.name, to, body))
+
+    def get(self, routerid):
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json_services_used(routerid, "growl"))
