@@ -45,7 +45,6 @@ class Log(webapp.RequestHandler):
             return            
 
         les = [ le.todict() for s in u.services for le in s.log_entries ]
-        log("%s", les)
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(les, indent=2))
 
@@ -57,6 +56,14 @@ def json_services_used(r, s):
     return json.dumps(
         [ su.todict() for su in r.services.filter("service =", s) ],
         indent=2)
+
+def log_notification(to, body, sus):
+    serviceUsed = None
+    for su in sus:
+        if su.endpoint == to:
+            serviceUsed = su
+    if not serviceUsed: BARF
+    models.Log(msg="Sent message: " + body + " to " + to, svcu=serviceUsed).put()
 
 class Status(webapp.RequestHandler):
     def post(self, routerid):
@@ -97,7 +104,7 @@ class Email(webapp.RequestHandler):
         message.to = to
         message.body = body
         message.send()
-
+        log_notification(to, body, sus)
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "email"))
@@ -127,7 +134,7 @@ class Facebook(webapp.RequestHandler):
         message.to = to
         message.body = body
         message.send()
-
+        log_notification(to, body, sus)
         
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
@@ -168,8 +175,7 @@ class Twitter(webapp.RequestHandler):
             )
 
         log("result: %s -- %s -- %s -- %s" % (resp, resp.status_code, resp.headers, resp.content))
-        serviceLog = models.Log(msg="Sent message: " + body + " to " + to + " using Twitter", svcu=sus[0])
-        serviceLog.put()
+        log_notification(to, body, sus)
         n = models.Router.all().count()
         d = datetime.datetime.now().isoformat()
         twitterid = hashlib.sha1("%s:%s" % (n, d)).hexdigest()
@@ -195,6 +201,7 @@ class Sms(webapp.RequestHandler):
         if not body: BARF
         
         to = self.request.get("to")
+        log(to)
         registered_phones = [ su.endpoint for su in sus ]
         if (not to or to not in registered_phones): BARF
         
@@ -207,6 +214,7 @@ class Sms(webapp.RequestHandler):
         resp = urlfetch.fetch(theurl);
         log("result: %s -- %s -- %s -- %s" % (
                                               resp, resp.status_code, resp.headers, resp.content))
+        log_notification(to, body, sus[0])
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "sms"))
@@ -244,6 +252,7 @@ class Push(webapp.RequestHandler):
         resp = f.read()
         f.close()
         log("result: %s" % (resp))
+        log_notification(to, body, sus)
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "push"))
@@ -267,7 +276,7 @@ class Growl(webapp.RequestHandler):
         
         log("GROWL: user:%s to:%s body:\n%s\n--\n" % (
                                                      r.name, to, body))
-
+        log_notification(to, body, sus)
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "growl"))
