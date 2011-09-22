@@ -39,12 +39,14 @@ class Root(webapp.RequestHandler):
 
 class Log(webapp.RequestHandler):
     def get(self, routerid, pageno=None):
-        u = models.Router.all().filter("routerid =", routerid).get()
-        if not u:
+        r = models.Router.all().filter("routerid =", routerid).get()
+        if not r:
             self.response.out.write("")
             return            
-
-        les = sorted([ le.todict() for s in u.services for le in s.log_entries ], key=lambda le:le.ts)
+                #svcus = models.ServiceUse.all().filter("router = ", r).fetch(100)
+                #les = models.Log.gql("WHERE svcu IN (%s) ORDER BY ts ASC" % ([su.key() for su in svcus])).fetch(1000)
+        
+        les = sorted([ le.todict() for s in r.services for le in s.log_entries ], key=lambda le:le['ts'])
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(les, indent=2))
 
