@@ -44,7 +44,7 @@ class Log(webapp.RequestHandler):
             self.response.out.write("")
             return            
 
-        les = [ le.todict() for s in u.services for le in s.log_entries ]
+        les = sorted([ le.todict() for s in u.services for le in s.log_entries ], key=lambda le:le.ts)
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(les, indent=2))
 
@@ -63,7 +63,13 @@ def log_notification(to, body, sus):
         if su.endpoint == to:
             serviceUsed = su
     if not serviceUsed: BARF
-    models.Log(msg="Sent message: " + body + " to " + to, svcu=serviceUsed).put()
+    models.Log(msg="Sent message: %s to %s" % (body, to), svcu=serviceUsed).put()
+
+def generate_notification_id(routerid):
+    n = models.NotifyResult.all().count()
+    d = datetime.datetime.now().isoformat()
+    notificationId = hashlib.sha1("%s:%s:%s" % (routerid, n, d)).hexdigest()
+    return notificationId
 
 class Status(webapp.RequestHandler):
     def post(self, routerid):
@@ -176,13 +182,9 @@ class Twitter(webapp.RequestHandler):
 
         log("result: %s -- %s -- %s -- %s" % (resp, resp.status_code, resp.headers, resp.content))
         log_notification(to, body, sus)
-        n = models.Router.all().count()
-        d = datetime.datetime.now().isoformat()
-        twitterid = hashlib.sha1("%s:%s" % (n, d)).hexdigest()
-        log("notification id: %s", twitterid) 
-        twitterResponse = models.NotifyResult(statusCode=resp.status_code, statusMessage=resp.content,notification=twitterid, router=r)
-        twitterResponse.put()
-        self.response.out.write(twitterid);
+        notificationId = generate_notification_id(routerid)
+        models.NotifyResult(statusCode=resp.status_code, statusMessage=resp.content,notification=notificationId, router=r).put()
+        self.response.out.write(notificationId);
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "twitter"))
@@ -210,11 +212,15 @@ class Sms(webapp.RequestHandler):
         smsToken = secrets.SMS_TOKEN
         dict = { 'numberToDial' : to, 'message' : body}
         data = urllib.urlencode(dict)
-        theurl = "https://api.tropo.com/1.0/sessions?action=create&token=" + smsToken + "&" + data
+        theurl = "https://api.tropo.com/1.0/sessions?action=create&token=%s&%s" % (smsToken, data)
         resp = urlfetch.fetch(theurl);
         log("result: %s -- %s -- %s -- %s" % (
                                               resp, resp.status_code, resp.headers, resp.content))
         log_notification(to, body, sus[0])
+        notificationId = generate_notification_id(routerid)
+        models.NotifyResult(statusCode=resp.status_code, statusMessage=resp.content,notification=notificationId, router=r).put()
+        self.response.out.write(notificationId);
+
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "sms"))
@@ -238,21 +244,30 @@ class Push(webapp.RequestHandler):
         
         log("PUSH: user:%s to:%s body:\n%s\n--\n" % (
                                                     r.name, to, body))  
-        notificationJson = "{\"android\": {\"alert\": \"" + body + "\"}, \"apids\": [\"" + to + "\"]}"
-        log("JSON: " +notificationJson)
+        notificationJson = "{\"aps\": {\"alert\": \"%s\"}, \"device_tokens\": [\"%s\"]}" % (body, to)
+        log("JSON: %s" % (notificationJson))
         theurl = "https://go.urbanairship.com/api/push/"
         passwordManager = urllib2.HTTPPasswordMgrWithDefaultRealm()
         passwordManager.add_password(None, theurl, secrets.PUSH_KEY, secrets.PUSH_SECRET);
         authHandler = urllib2.HTTPBasicAuthHandler(passwordManager);
         opener = urllib2.build_opener(authHandler);
         urllib2.install_opener(opener)
-        
+        sc = 200
+        sm = "Notification Sent"
         req = urllib2.Request(theurl, notificationJson, {'Content-Type': 'application/json'})
-        f = urllib2.urlopen(req)
-        resp = f.read()
-        f.close()
-        log("result: %s" % (resp))
+        try:
+            f = urllib2.urlopen(req)
+            resp = f.read()
+            f.close()
+            log("result: %s" % (resp))
+        except URLError, e:
+            sc = e.code
+            sm = e.reason
         log_notification(to, body, sus)
+        notificationId = generate_notification_id(routerid)
+        models.NotifyResult(statusCode=sc, statusMessage=sm,notification=notificationId, router=r).put()
+        self.response.out.write(notificationId);
+
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "push"))

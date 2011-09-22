@@ -114,7 +114,7 @@ class Log(db.Model):
         return { 'uid': self.svcu.router.routerid,
                  'msg': self.msg,
                  'service': self.svcu.service.key().name(),
-                 'ts': unicode(self.ts),
+                 'ts': ts,
                  }
 class NotifyResult(db.Model):
     statusCode = db.IntegerProperty(required=True)
