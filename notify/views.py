@@ -37,6 +37,20 @@ class Root(webapp.RequestHandler):
             routerid = hashlib.sha1("%s:%s" % (n, d)).hexdigest()
         self.response.out.write(routerid)
 
+class Register(webapp.RequestHandler):
+    def post(self, routerid):
+        r = models.Router.all().filter("routerid =", routerid).get()
+        if not r: BARF
+        requestedService = self.request.get("service")
+        if not requestedService: BARF
+        s = models.Service.get_by_key_name(requestedService)
+        if not s: BARF
+        requestedEndpoint = self.request.get("userdetails")
+        if not requestedEndpoint: BARF
+        n = models.ServiceUse.all().count()
+        d = datetime.datetime.now().isoformat()
+        serviceUseId = hashlib.sha1("%s:%s:%s" % (routerid, n, d)).hexdigest()
+        models.ServiceUse(service=s, router=r, endpoint=requestedEndpoint, suid=serviceUseId).put()
 class Log(webapp.RequestHandler):
     def get(self, routerid, pageno=None):
         r = models.Router.all().filter("routerid =", routerid).get()
@@ -80,7 +94,7 @@ class Status(webapp.RequestHandler):
         status = self.request.get("notification")
         log("%s", status)
         if not status: BARF
-        notificationResult = models.NotifyResult.all().filter("notification ==", status).get()
+        notificationResult = models.NotifyResult.all().filter("notification =", status).get()
         log("%s", notificationResult)
         resultDict = notificationResult.todict()
         log("%s", resultDict)

@@ -36,6 +36,7 @@ urls += map(
       (r'growl/?', views.Growl),
       
       (r'status/?', views.Status),
+      (r'register/?', views.Register),
       ])
         
 application = webapp.WSGIApplication(urls, debug=False)
