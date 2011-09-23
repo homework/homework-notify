@@ -40,13 +40,25 @@ class Root(webapp.RequestHandler):
 class Register(webapp.RequestHandler):
     def post(self, routerid):
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found")
+            self.response.set_status(404)
+            return
         requestedService = self.request.get("service")
-        if not requestedService: BARF
+        if not requestedService: 
+            self.response.out.write("No Service entered. Stopping")
+            self.response.set_status(400)
+            return
         s = models.Service.get_by_key_name(requestedService)
-        if not s: BARF
+        if not s: 
+            self.response.out.write("Service not found. Stopping")
+            self.response.set_status(404)
+            return
         requestedEndpoint = self.request.get("userdetails")
-        if not requestedEndpoint: BARF
+        if not requestedEndpoint: 
+            self.response.out.write("No user details entered. Stopping")
+            self.response.set_status(400)
+            return
         n = models.ServiceUse.all().count()
         d = datetime.datetime.now().isoformat()
         serviceUseId = hashlib.sha1("%s:%s:%s" % (routerid, n, d)).hexdigest()
@@ -55,10 +67,9 @@ class Log(webapp.RequestHandler):
     def get(self, routerid, pageno=None):
         r = models.Router.all().filter("routerid =", routerid).get()
         if not r:
-            self.response.out.write("")
+            self.response.out.write("No Router found")
+            self.set_status(404)
             return            
-                #svcus = models.ServiceUse.all().filter("router = ", r).fetch(100)
-                #les = models.Log.gql("WHERE svcu IN (%s) ORDER BY ts ASC" % ([su.key() for su in svcus])).fetch(1000)
         
         les = sorted([ le.todict() for s in r.services for le in s.log_entries ], key=lambda le:le['ts'])
         self.response.headers['Content-Type'] = 'application/json'
@@ -78,7 +89,10 @@ def log_notification(to, body, sus):
     for su in sus:
         if su.endpoint == to:
             serviceUsed = su
-    if not serviceUsed: BARF
+    if not serviceUsed: 
+        self.response.out.write("No matching endpoint found. Nothing to Log.")
+        self.set_status(404)
+        return
     models.Log(msg="Sent message: %s to %s" % (body, to), svcu=serviceUsed).put()
 
 def generate_notification_id(routerid):
@@ -90,14 +104,25 @@ def generate_notification_id(routerid):
 class Status(webapp.RequestHandler):
     def post(self, routerid):
         u = models.Router.all().filter("routerid =", routerid).get()
-        if not u: BARF
+        if not u: 
+            self.response.out.write("Router not found. Can't request status")
+            self.response.set_status(404)
+            return
         status = self.request.get("notification")
-        log("%s", status)
-        if not status: BARF
+        if not status: 
+            self.response.write("No notification ID entered. Can't get status.")
+            self.response.set_status(400)
+            return
         notificationResult = models.NotifyResult.all().filter("notification =", status).get()
-        log("%s", notificationResult)
+        if not notificationResult:
+            self.response.out.write("No Notification found with that ID. Stopping")
+            self.response.set_status(404)
+            return
         resultDict = notificationResult.todict()
-        log("%s", resultDict)
+        if not resultDict:
+            self.response.out.write("Error retrieving status.");
+            self.response.set_status(400)
+            return
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(resultDict, indent=2))
 
@@ -105,24 +130,39 @@ class Email(webapp.RequestHandler):
     def post(self, routerid):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found. Can't send notification")
+            self.response.set_status(404)
+            return
 
         s = models.Service.get_by_key_name("email")
         sus = r.services.filter("service =", s).fetch(100)
-        if not sus: BARF
+        if not sus: 
+            self.response.out.write("no email addresses available to send to")
+            self.response.set_status(404)
+            return
 
         body = self.request.get("body")
-        if not body: BARF
+        if not body: 
+            self.response.out.write("No message given. Nothing to send")
+            self.response.set_status(400)
+            return
 
         to = self.request.get("to")
+        if not to:
+            self.response.out.write("No email address entered")
+            self.response.set_status(400)
+            return
         registered_emails = [ su.endpoint for su in sus ]
-        if (not to or to not in registered_emails): BARF
+        if to not in registered_emails: 
+            self.response.out.write("Unknown email address entered. Unable to send message")
+            self.response.set_status(404)
+            return
                 
         log("EMAIL: user:%s to:%s body:\n%s\n--\n" % (
             r.name, to, body))
 
-        message = mail.EmailMessage(sender=s.endpoint,
-                                    subject="Homework Router Notification!")
+        message = mail.EmailMessage(sender=s.endpoint, subject="Homework Router Notification!")
         message.to = to
         message.body = body
         message.send()
@@ -135,24 +175,38 @@ class Facebook(webapp.RequestHandler):
     def post(self, routerid):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found. Can't send notification")
+            self.response.set_status(404)
+            return
     
         s = models.Service.get_by_key_name("facebook")
         sus = r.services.filter("service =", s).fetch(100)
-        if not sus: BARF
+        if not sus: 
+            self.response.out.write("No Facebook accounts available to send to")
+            self.response.set_status(404)
+            return
         
         body = self.request.get("body")
-        if not body: BARF
+        if not body: 
+            self.response.out.write("No message given. Nothing to send")
+            self.response.set_status(400)
+            return
         
         to = self.request.get("to")
+        if not to:
+            self.response.out.write("No Facebook email address entered")
+            self.set_status(400)
+            return
         registered_emails = [ su.endpoint for su in sus ]
-        if (not to or to not in registered_emails): BARF
+        if to not in registered_emails: 
+            self.response.out.write("Unknown Facebook email address entered. Unable to send message")
+            self.response.set_status(404)
+            return
         
-        log("FACEBOOK: user:%s to:%s body:\n%s\n--\n" % (
-                                                      r.name, to, body))
+        log("FACEBOOK: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
         
-        message = mail.EmailMessage(sender=s.endpoint,
-                                    subject="Homework Router Notification!")
+        message = mail.EmailMessage(sender=s.endpoint, subject="Homework Router Notification!")
         message.to = to
         message.body = body
         message.send()
@@ -166,21 +220,36 @@ class Twitter(webapp.RequestHandler):
     def post(self, routerid):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found. Can't send notification")
+            self.response.set_status(404)
+            return
         
         s = models.Service.get_by_key_name("twitter")
         sus = r.services.filter("service =", s).fetch(100)
-        if not sus: BARF
+        if not sus: 
+            self.response.out.write("No Twitter accounts available to send to")
+            self.response.set_status(404)
+            return
 
         body = self.request.get("body")
-        if not body: BARF
+        if not body: 
+            self.response.out.write("No message given. Nothing to send")
+            self.set_status(400)
+            return
 
         to = self.request.get("to")
+        if not to:
+            self.response.out.write("No Twitter Account Name entered")
+            self.set_status(400)
+            return
         registered_eps = [ su.endpoint for su in sus ]
-        if (not to or to not in registered_eps): BARF
+        if to not in registered_eps:
+            self.response.out.write("Unknown Twitter account entered. Unable to send message")
+            self.set_status(404)
+            return
 
-        log("TWITTER: user:%s to:%s body:\n%s\n--\n" % (
-            r.name, to, body))
+        log("TWITTER: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
 
         client = oauth.TwitterClient(
             secrets.TWITTER_CONSUMER_KEY,
@@ -209,30 +278,43 @@ class Sms(webapp.RequestHandler):
     def post(self, routerid):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found. Can't send notification")
+            self.response.set_status(404)
+            return
     
         s = models.Service.get_by_key_name("sms")
         sus = r.services.filter("service =", s).fetch(100)
-        if not sus: BARF
+        if not sus: 
+            self.response.out.write("No Phones available to send to")
+            self.set_status(404)
+            return
         
         body = self.request.get("body")
-        if not body: BARF
+        if not body: 
+            self.response.out.write("No message given. Nothing to send")
+            self.set_status(400)
+            return
         
         to = self.request.get("to")
-        log(to)
+        if not to:
+            self.response.out.write("No Phone number entered")
+            self.set_status(400)
+            return
         registered_phones = [ su.endpoint for su in sus ]
-        if (not to or to not in registered_phones): BARF
+        if to not in registered_phones: 
+            self.response.out.write("Unknown phone number entered. Unable to send message")
+            self.set_status(404)
+            return
         
-        log("SMS: user:%s to:%s body:\n%s\n--\n" % (
-                                                    r.name, to, body))
+        log("SMS: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
         smsToken = secrets.SMS_TOKEN
         dict = { 'numberToDial' : to, 'message' : body}
         data = urllib.urlencode(dict)
         theurl = "https://api.tropo.com/1.0/sessions?action=create&token=%s&%s" % (smsToken, data)
         resp = urlfetch.fetch(theurl);
-        log("result: %s -- %s -- %s -- %s" % (
-                                              resp, resp.status_code, resp.headers, resp.content))
-        log_notification(to, body, sus[0])
+        log("result: %s -- %s -- %s -- %s" % (resp, resp.status_code, resp.headers, resp.content))
+        log_notification(to, body, sus)
         notificationId = generate_notification_id(routerid)
         models.NotifyResult(statusCode=resp.status_code, statusMessage=resp.content,notification=notificationId, router=r).put()
         self.response.out.write(notificationId);
@@ -245,21 +327,36 @@ class Push(webapp.RequestHandler):
     def post(self, routerid):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found. Can't send notification")
+            self.response.set_status(404)
+            return
         
         s = models.Service.get_by_key_name("push")
         sus = r.services.filter("service =", s).fetch(100)
-        if not sus: BARF
+        if not sus: 
+            self.response.out.write("No devices available to send to")
+            self.response.set_status(404)
+            return
         
         body = self.request.get("body")
-        if not body: BARF
+        if not body: 
+            self.response.out.write("No message given. Nothing to send")
+            self.response.set_status(400)
+            return
         
         to = self.request.get("to")
+        if not to:
+            self.response.out.write("No device ID entered")
+            self.set_status(400)
+            return
         registered_phones = [ su.endpoint for su in sus ]
-        if (not to or to not in registered_phones): BARF
+        if to not in registered_phones: 
+            self.response.out.write("Unknown device ID entered. Unable to send message")
+            self.response.set_status(404)
+            return
         
-        log("PUSH: user:%s to:%s body:\n%s\n--\n" % (
-                                                    r.name, to, body))  
+        log("PUSH: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))  
         notificationJson = "{\"aps\": {\"alert\": \"%s\"}, \"device_tokens\": [\"%s\"]}" % (body, to)
         log("JSON: %s" % (notificationJson))
         theurl = "https://go.urbanairship.com/api/push/"
@@ -292,21 +389,36 @@ class Growl(webapp.RequestHandler):
     def post(self, routerid):
         if routerid == models.DEFAULT_ROUTER_ID: return
         r = models.Router.all().filter("routerid =", routerid).get()
-        if not r: BARF
+        if not r: 
+            self.response.out.write("Router not found. Can't log notification")
+            self.response.set_status(404)
+            return
         
         s = models.Service.get_by_key_name("growl")
         sus = r.services.filter("service =", s).fetch(100)
-        if not sus: BARF
+        if not sus: 
+            self.response.out.write("No Growl clients available. Can't log the notification")
+            self.response.set_status(404)
+            return
         
         body = self.request.get("body")
-        if not body: BARF
+        if not body: 
+            self.response.out.write("No message given. Nothing to log")
+            self.response.set_status(400)
+            return
         
         to = self.request.get("to")
+        if not to:
+            self.response.out.write("No IP Address entered, can't log notification, without destination")
+            self.response.set_status(400)
+            return
         registered_devices = [ su.endpoint for su in sus ]
-        if (not to or to not in registered_devices): BARF
+        if to not in registered_devices: 
+            self.response.out.write("Unknown IP Address entered. Unable to log message")
+            self.response.set_status(404)
+            return
         
-        log("GROWL: user:%s to:%s body:\n%s\n--\n" % (
-                                                     r.name, to, body))
+        log("GROWL: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
         log_notification(to, body, sus)
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
