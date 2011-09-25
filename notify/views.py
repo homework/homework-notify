@@ -196,7 +196,7 @@ class Facebook(webapp.RequestHandler):
         to = self.request.get("to")
         if not to:
             self.response.out.write("No Facebook email address entered")
-            self.set_status(400)
+            self.response.set_status(400)
             return
         registered_emails = [ su.endpoint for su in sus ]
         if to not in registered_emails: 
