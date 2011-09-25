@@ -91,7 +91,7 @@ def log_notification(to, body, sus):
             serviceUsed = su
     if not serviceUsed: 
         self.response.out.write("No matching endpoint found. Nothing to Log.")
-        self.set_status(404)
+        self.response.set_status(404)
         return
     models.Log(msg="Sent message: %s to %s" % (body, to), svcu=serviceUsed).put()
 
@@ -235,18 +235,18 @@ class Twitter(webapp.RequestHandler):
         body = self.request.get("body")
         if not body: 
             self.response.out.write("No message given. Nothing to send")
-            self.set_status(400)
+            self.response.set_status(400)
             return
 
         to = self.request.get("to")
         if not to:
             self.response.out.write("No Twitter Account Name entered")
-            self.set_status(400)
+            self.response.set_status(400)
             return
         registered_eps = [ su.endpoint for su in sus ]
         if to not in registered_eps:
             self.response.out.write("Unknown Twitter account entered. Unable to send message")
-            self.set_status(404)
+            self.response.set_status(404)
             return
 
         log("TWITTER: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
@@ -287,24 +287,24 @@ class Sms(webapp.RequestHandler):
         sus = r.services.filter("service =", s).fetch(100)
         if not sus: 
             self.response.out.write("No Phones available to send to")
-            self.set_status(404)
+            self.response.set_status(404)
             return
         
         body = self.request.get("body")
         if not body: 
             self.response.out.write("No message given. Nothing to send")
-            self.set_status(400)
+            self.response.set_status(400)
             return
         
         to = self.request.get("to")
         if not to:
             self.response.out.write("No Phone number entered")
-            self.set_status(400)
+            self.response.set_status(400)
             return
         registered_phones = [ su.endpoint for su in sus ]
         if to not in registered_phones: 
             self.response.out.write("Unknown phone number entered. Unable to send message")
-            self.set_status(404)
+            self.response.set_status(404)
             return
         
         log("SMS: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
@@ -348,7 +348,7 @@ class Push(webapp.RequestHandler):
         to = self.request.get("to")
         if not to:
             self.response.out.write("No device ID entered")
-            self.set_status(400)
+            self.response.set_status(400)
             return
         registered_phones = [ su.endpoint for su in sus ]
         if to not in registered_phones: 
