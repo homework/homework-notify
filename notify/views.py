@@ -68,7 +68,7 @@ class Log(webapp.RequestHandler):
         r = models.Router.all().filter("routerid =", routerid).get()
         if not r:
             self.response.out.write("No Router found")
-            self.set_status(404)
+            self.response.set_status(404)
             return            
         
         les = sorted([ le.todict() for s in r.services for le in s.log_entries ], key=lambda le:le['ts'])
