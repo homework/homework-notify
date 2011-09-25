@@ -110,7 +110,7 @@ class Status(webapp.RequestHandler):
             return
         status = self.request.get("notification")
         if not status: 
-            self.response.write("No notification ID entered. Can't get status.")
+            self.response.out.write("No notification ID entered. Can't get status.")
             self.response.set_status(400)
             return
         notificationResult = models.NotifyResult.all().filter("notification =", status).get()
