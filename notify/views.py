@@ -144,7 +144,7 @@ class Email(webapp.RequestHandler):
 
         body = self.request.get("body")
         if not body: 
-            self.response.out.write("No message given. Nothing to send")
+            self.response.out.write("no message given")
             self.response.set_status(400)
             return
 
