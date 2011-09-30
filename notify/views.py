@@ -37,6 +37,14 @@ class Root(webapp.RequestHandler):
             routerid = hashlib.sha1("%s:%s" % (n, d)).hexdigest()
         self.response.out.write(routerid)
 
+class AddRouter(webapp.RequestHandler):
+    def post(self, routerid):
+        r = models.Router.all().filter("routerid = ", routerid).get()
+        if r:
+            self.response.out.write("Router already exists")
+            return
+        routerName = self.request.get("name")
+        models.Router(routerid=routerid, name=routerName).put()
 class Register(webapp.RequestHandler):
     def post(self, routerid):
         r = models.Router.all().filter("routerid =", routerid).get()

@@ -37,6 +37,7 @@ urls += map(
       
       (r'status/?', views.Status),
       (r'register/?', views.Register),
+      (r'add/?', views.AddRouter),
       ])
         
 application = webapp.WSGIApplication(urls, debug=False)
