@@ -37,7 +37,6 @@ handlers:
 
 - url: /notify/1/?
   script: notify/urls.py
-  login: admin
   secure: always
 
 - url: /notify/1/.*
