@@ -45,5 +45,4 @@ handlers:
 
 - url: /.*
   script: notfound.py
-  login: required
   secure: always
