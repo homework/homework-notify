@@ -291,7 +291,7 @@ class Sms(webapp.RequestHandler):
             self.response.set_status(404)
             return
     
-        s = models.Service.get_by_key_name("sms")
+        s = models.Service.get_by_key_name("phone")
         sus = r.services.filter("service =", s).fetch(100)
         if not sus: 
             self.response.out.write("No Phones available to send to")
@@ -315,8 +315,8 @@ class Sms(webapp.RequestHandler):
             self.response.set_status(404)
             return
         
-        log("SMS: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
-        smsToken = secrets.SMS_TOKEN
+        log("PHONE: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
+        smsToken = secrets.PHONE_TOKEN
         dict = { 'numberToDial' : to, 'message' : body}
         data = urllib.urlencode(dict)
         theurl = "https://api.tropo.com/1.0/sessions?action=create&token=%s&%s" % (smsToken, data)
@@ -329,7 +329,7 @@ class Sms(webapp.RequestHandler):
 
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
-        self.response.out.write(json_services_used(routerid, "sms"))
+        self.response.out.write(json_services_used(routerid, "phone"))
 
 class Push(webapp.RequestHandler):
     def post(self, routerid):

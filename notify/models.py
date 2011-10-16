@@ -67,7 +67,7 @@ class Service(db.Model):
         Service.get_or_insert("twitter", endpoint=secrets.TWITTER_ENDPOINT)
         Service.get_or_insert("email", endpoint=secrets.EMAIL_ENDPOINT)
         Service.get_or_insert("facebook", endpoint=secrets.FACEBOOK_ENDPOINT)
-        Service.get_or_insert("sms", endpoint=secrets.SMS_ENDPOINT)
+        Service.get_or_insert("phone", endpoint=secrets.PHONE_ENDPOINT)
         Service.get_or_insert("push", endpoint=secrets.PUSH_ENDPOINT)
         Service.get_or_insert("growl", endpoint=secrets.GROWL_ENDPOINT)
 
