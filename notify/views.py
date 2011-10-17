@@ -101,6 +101,13 @@ def log_notification(to, body, sus):
         self.response.out.write("No matching endpoint found. Nothing to Log.")
         self.response.set_status(404)
         return
+    s = models.Service.get_by_key_name("email")
+    emailbody = "Sent message: %s to %s from %s (%s) using service %s" % (body, to, serviceUsed.router.routerid, serviceUsed.router.name, serviceUsed.service.key().name())
+    message = mail.EmailMessage(sender=s.endpoint, subject="Homework Router Notification sent")
+    message.to = secrets.ETHNOGRAPHY_EMAIL
+    message.body = emailbody    
+    message.send()
+    
     models.Log(msg="Sent message: %s to %s" % (body, to), svcu=serviceUsed).put()
 
 def generate_notification_id(routerid):
