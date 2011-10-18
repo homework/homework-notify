@@ -50,22 +50,26 @@ class Register(webapp.RequestHandler):
         r = models.Router.all().filter("routerid =", routerid).get()
         if not r: 
             self.response.out.write("Router not found")
+            log("Router not found")
             self.response.set_status(404)
             return
         requestedService = self.request.get("service")
         if not requestedService: 
             self.response.out.write("No Service entered. Stopping")
             self.response.set_status(400)
+            log("no service entered")
             return
         s = models.Service.get_by_key_name(requestedService)
         if not s: 
             self.response.out.write("Service not found. Stopping")
             self.response.set_status(404)
+            log("service not found. %s", % (requestedService))
             return
         requestedEndpoint = self.request.get("userdetails")
         if not requestedEndpoint: 
             self.response.out.write("No user details entered. Stopping")
             self.response.set_status(400)
+            log("no user details entered")
             return
         n = models.ServiceUse.all().count()
         d = datetime.datetime.now().isoformat()
