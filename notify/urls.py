@@ -32,6 +32,7 @@ urls += map(
       (r'facebook/?', views.Facebook),
       (r'twitter/?', views.Twitter),
       (r'sms/?', views.Sms),
+      (r'phone/?', views.Sms),
       (r'push/?', views.Push),
       (r'growl/?', views.Growl),
       
