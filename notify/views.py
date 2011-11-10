@@ -63,7 +63,7 @@ class Register(webapp.RequestHandler):
         if not s: 
             self.response.out.write("Service not found. Stopping")
             self.response.set_status(404)
-            log("service not found. %s", % (requestedService))
+            log("service not found.")
             return
         requestedEndpoint = self.request.get("userdetails")
         if not requestedEndpoint: 
@@ -186,6 +186,7 @@ class Email(webapp.RequestHandler):
         message.body = body
         message.send()
         log_notification(to, body, sus)
+        self.response.out.write("email sent")
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "email"))
@@ -230,7 +231,7 @@ class Facebook(webapp.RequestHandler):
         message.body = body
         message.send()
         log_notification(to, body, sus)
-        
+        self.response.out.write("Facebook message sent")
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "facebook"))
@@ -439,6 +440,7 @@ class Growl(webapp.RequestHandler):
         
         log("GROWL: user:%s to:%s body:\n%s\n--\n" % (r.name, to, body))
         log_notification(to, body, sus)
+        self.response.out.write("Growl notification sent")
     def get(self, routerid):
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json_services_used(routerid, "growl"))
